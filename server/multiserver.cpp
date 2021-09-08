@@ -1,7 +1,6 @@
 #include "multiserver.h"
 #include <iostream>
 #include <vector>
-#include "AMQPcpp.h"
 #include <sstream>
 #include <stdlib.h>
 #include <thread>
@@ -88,8 +87,35 @@ int Server::createServer(){
 		fprintf(stderr,"Error: %s [%d]",mysql_error(conn),mysql_errno(conn));
 		exit(1);
 	}
+
+
+	// creating rabbitmq server
+
+	// try {
+	
+	// 	AMQP amqp("AK.Tanla:Welcome#$123@localhost:5672//");		// all connect string
+
+	// 	ex = amqp.createExchange("ChatAppSignUp");
+	// 	ex->Declare("ChatApp", "direct");
+	// 	string queue="SignUpInfo";
+	// 	AMQPQueue * qu2 = amqp.createQueue(queue);
+	// 	qu2->Declare();
+	// 	qu2->Bind( "ChatApp", queue);		
+
+
+	// 	ex->setHeader("Delivery-mode", 2);
+	// 	ex->setHeader("Content-type", "text/text");
+	// 	ex->setHeader("Content-encoding", "UTF-8"); 
+				
+								
+						
+	// } catch (AMQPException e) {
+	// 	std::cout << e.getMessage() << std::endl;
+	// }
+
+
 	return 0;
-}
+}   
 // listen function
 
 void Server::listenServer(){
@@ -204,89 +230,257 @@ void Server::processTheNewRequest()
 	}
 }
 
+
 void Server::processNewClient(int nClientSocket)
 {
 	int nRet;
 	char buff[2024]={0,};
-	nRet=recv(nClientSocket,(char*)&buff,1024,0);
-	cout<<nRet;
-	if(nRet<0)
-	{
-		cout<<endl<<"Something wrong happened closing the connecction"<<endl;
-		close(nClientSocket);
-		for(int i=0;i<max_clients;i++){
-			if(client_socket[i]==nClientSocket){
-				
-				client_socket[i]=0;
-				break;	
-			}
-		}
-	return;
-	}
-	else if(nRet==0){
-		cout<<"Forced shutdown or something like this happened on client side"<<endl;
-	}
-	else
-	{
-
+	while(1){
+		nRet=recv(nClientSocket,(char*)&buff,1024,0);
+		cout<<buff<<endl;
 		vector<string> data;
 		string T;  // declare string variables  
-   
-    	stringstream X(buff); // X is an object of stringstream that references the S string  
-   
-    	// use while loop to check the getline() function condition  
+
+		stringstream X(buff); // X is an object of stringstream that references the S string  
+
+		// use while loop to check the getline() function condition  
 		while (getline(X, T, '|')) {  
 			/* X represents to read the string from stringstream, T use for store the token string and, 
 			' ' whitespace represents to split the string where whitespace is found. */  
 			data.push_back(T);// print split string  
 		}  
-		cout<<"data splitted"<<endl;
-		cout<<"data[0]:: "<<data[0]<<endl;
-		if(data[0]=="SIGNUP")
+		cout<<data[0]<<endl;
+		if(nRet<0)
 		{
-			RegisterUser user;
-			user.setFirstName(data[1]);
-			user.setLastName(data[2]);
-			user.setUserName(data[3]);
-			user.setEmail(data[4]);
-			user.setPassword(data[5]);
-			string InsertUser="INSERT INTO user (user_firstName, user_lastName, user_name, user_email, user_password) VALUES('"+user.getFirstName()+"','"+user.getLastName()+"','"+user.getUserName()+"','"+user.getEmail()+"','"+user.getPassword()+"')";
-			int queryStatus=mysql_query(conn,InsertUser.c_str());
-			if(!queryStatus){
-				cout<<"data inserted successfully"<<endl;
-				send(nClientSocket,"SUCCESS",7,0);
-				cout<<"************************************************************"<<endl;
+			cout<<endl<<"Something wrong happened closing the connecction"<<endl;
+			close(nClientSocket);
+			for(int i=0;i<max_clients;i++){
+				if(client_socket[i]==nClientSocket){
+					
+					client_socket[i]=0;
+					break;	
+				}
 			}
-			else{
-				cout<<"unable to insert"<<endl;
-				cout<<mysql_error(conn)<<endl;
-				send(nClientSocket,mysql_error(conn),strlen(mysql_error(conn)),0);
-			}
-	
-
+			return;
 		}
-		else if (data[0]=="LOGIN")
+		else if(nRet==0){
+			cout<<"Forced shutdown or something like this happened on client side"<<endl;
+			close(nClientSocket);
+			for(int i=0;i<max_clients;i++){
+				if(client_socket[i]==nClientSocket){
+					client_socket[i]=0;
+					break;	
+				}
+			}
+			auto it=onlineUser.find(nClientSocket);
+			if(it!=onlineUser.end()){
+				onlineUser.erase(it);
+			}
+			return;
+		}
+		else
 		{
-			cout<<"Trying to Login"<<endl;
-			string queryLogin="SELECT user_password FROM user WHERE user_email='"+data[1]+"'";
-			int queryStatus=mysql_query(conn, queryLogin.c_str());
-			if(!queryStatus){
-				MYSQL_RES *res;
-				res =mysql_use_result(conn);
-				MYSQL_ROW row;
-				row = mysql_fetch_row(res);
-				if(row[0]==data[2]){
-					cout<<"You are Valid user"<<endl;
+
+			if(data[0]=="SIGNUP")
+			{
+				RegisterUser user;
+				user.setFirstName(data[1]);
+				user.setLastName(data[2]);
+				user.setUserName(data[3]);
+				user.setEmail(data[4]);
+				user.setPassword(data[5]);
+				string InsertUser="INSERT INTO user (user_firstName, user_lastName, user_name, user_email, user_password) VALUES('"+user.getFirstName()+"','"+user.getLastName()+"','"+user.getUserName()+"','"+user.getEmail()+"','"+user.getPassword()+"')";
+				int queryStatus=mysql_query(conn,InsertUser.c_str());
+				if(!queryStatus){
+					cout<<"data inserted successfully"<<endl;
 					send(nClientSocket,"SUCCESS",7,0);
+					cout<<"************************************************************"<<endl;
+					close(nClientSocket);
+					for(int i=0;i<max_clients;i++){
+						if(client_socket[i]==nClientSocket){
+							
+							client_socket[i]=0;
+							break;	
+						}
+			        }
+					return;
 				}
 				else{
-					cout<<"You are Invalid User"<<endl;
+					cout<<"unable to insert"<<endl;
 					cout<<mysql_error(conn)<<endl;
 					send(nClientSocket,mysql_error(conn),strlen(mysql_error(conn)),0);
+					close(nClientSocket);
+					for(int i=0;i<max_clients;i++){
+						if(client_socket[i]==nClientSocket){
+							
+							client_socket[i]=0;
+							break;	
+						}
+					}
+					return;
+				}
+			    return;
+
+			}
+			else if (data[0]=="LOGIN")
+			{
+				cout<<"Login Operation"<<endl;
+				int sendRes;
+				string queryLogin="SELECT user_password FROM user WHERE user_email='"+data[1]+"'";
+				int queryStatus=mysql_query(conn, queryLogin.c_str());
+				cout<<queryStatus<<endl;
+				if(!queryStatus)
+				{
+					MYSQL_RES *res;
+					res =mysql_use_result(conn);
+					MYSQL_ROW row;
+					row = mysql_fetch_row(res); 
+					if(row[0]==data[2])
+					{
+						mysql_free_result(res);
+						cout<<"You are Valid user"<<endl;
+						sendRes=send(nClientSocket,"SUCCESS",7,0);
+						if(sendRes>0)
+						{
+							onlineUser[nClientSocket]=data[1];
+							close(nClientSocket);
+							for(int i=0;i<max_clients;i++)
+							{
+								if(client_socket[i]==nClientSocket)
+								{
+									
+									client_socket[i]=0;
+									break;	
+								}
+							}
+						}
+						else
+						{
+							cout<<"not able to send success message"<<endl;
+							close(nClientSocket);
+							for(int i=0;i<max_clients;i++)
+							{
+								if(client_socket[i]==nClientSocket)
+								{
+									
+									client_socket[i]=0;
+									break;	
+								}
+							}
+						}
+					}
+
+					else
+					{
+						cout<<"You are Invalid User"<<endl;
+						mysql_free_result(res);
+						cout<<mysql_error(conn)<<endl;
+						send(nClientSocket,mysql_error(conn),strlen(mysql_error(conn)),0);
+						cout<<endl<<"Something wrong happened closing the connecction"<<endl;
+						close(nClientSocket);
+						for(int i=0;i<max_clients;i++){
+							if(client_socket[i]==nClientSocket){
+								
+								client_socket[i]=0;
+								break;	
+							}
+						}
+						return;
+					}
+				}
+				else
+				{
+					cout<<"Query not Succesful Email not found or something else happened"<<endl;
+					cout<<mysql_error(conn)<<endl;
+					close(nClientSocket);
+						for(int i=0;i<max_clients;i++){
+							if(client_socket[i]==nClientSocket){
+								
+								client_socket[i]=0;
+								break;	
+							}
+						}
+						return;
+					
 				}
 			}
+			else if(data[0]=="CHAT")
+			{
+				string dest=data[2];
+				int destClientSocket;
+				int onlineUserFlag=0;
+				for(auto it=onlineUser.begin();it!=onlineUser.end();it++){
+					if((it->second)==dest){
+						onlineUserFlag=1;
+						cout<<"user -"<< dest <<"-is online"<<endl;
+						destClientSocket = it->first;
+						break;	
+					}
+
+				}
+				cout<<"onlineUserFlag"<<onlineUserFlag<<endl;
+				if(onlineUserFlag==0){
+					cout<<"uesr -"<< dest<<" - not online"<<endl;
+					destClientSocket=0;
+					string msg="@"+dest+"--- not online";
+					send(nClientSocket,(char*)&msg[0],sizeof(msg),0);
+				}
+				else{
+					string messageTosend="";
+					messageTosend=data[1]+"|"+data[3]+"|"+data[4];
+					cout<<messageTosend<<endl;
+					if(destClientSocket!=0){
+						int sendStatus=send(destClientSocket,(char*)&messageTosend[0],sizeof(messageTosend),0);
+						if(sendStatus>0){
+							cout<<"Message to Destination - "<<dest<<" - sent"<<endl;
+
+						}
+						else{
+							cout<<"some error in sending to - "<<dest<<"-"<<endl;
+						}
+					}
+					
+				}
+				
+			}
+			else if(data[0]=="LOGOUT"){
+				for(auto it=onlineUser.begin();it!=onlineUser.end();it++){
+					if((it->second)==data[1]){
+						cout<<"user -"<< data[1] <<"-is loggedOut"<<endl;
+						onlineUser.erase(it);
+						break;	
+					}
+
+				}
+				close(nClientSocket);
+				for(int i=0;i<max_clients;i++){
+					if(client_socket[i]==nClientSocket){
+						
+						client_socket[i]=0;
+						break;	
+					}
+				}
+				return;
+
+			}		
+			else 
+			{
+				cout<<"Invalid operation asked to perfornm";
+				close(nClientSocket);
+				for(int i=0;i<max_clients;i++){
+					if(client_socket[i]==nClientSocket){
+						
+						client_socket[i]=0;
+						break;	
+					}
+				}
+				return;
+			}
+			
 		}
+		
 	}
+	
 	return;
 }
 

@@ -21,6 +21,7 @@
 #include <map>
 #include <sys/ioctl.h>
 #include <mysql/mysql.h>
+#include <AMQPcpp.h>
 
 using namespace std;
 
@@ -43,6 +44,12 @@ class Server{
     char *unix_socket;
     unsigned int flag;
 
+    // for maintaining Logged in user
+    map <int, string> onlineUser;
+
+    // for rabbitmq 
+    AMQPExchange * ex;
+
     Server();
 
     public:
@@ -54,4 +61,5 @@ class Server{
         int publishMessage(string message ); 
 
 };
+
 

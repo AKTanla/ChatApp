@@ -7,9 +7,8 @@
 #include <stdio.h>
 #include "user.h"
 #include <boost/regex.hpp>
-#include <curses.h>
-#include<limits>
-#include<ios>
+#include <thread>
+#include <ctime>
 
 using namespace std;
 using namespace boost;
@@ -23,7 +22,7 @@ void showOption(){
     cout<<"*            HERE ARE YOUR OPTIONS                              *"<<endl;
     cout<<"*            1. TO SIGN UP                                      *"<<endl;
     cout<<"*            2. TO SIGN IN                                      *"<<endl;
-    cout<<"*            3. TO CONTINUE WITHOUT SIGN IN                     *"<<endl;
+    cout<<"*            3. TO START CHAT                                   *"<<endl;
     cout<<"*            4. TO EXIT                                         *"<<endl;
     cout<<"*****************************************************************"<<endl;
 }
@@ -66,8 +65,6 @@ RegisterUser showSignUpWindowandCollectData()
     newUser.setUserName(userName);
     newUser.setEmail(email);
     newUser.setPassword(password);
-
-    cout<<"returning"<<endl;
     return newUser;
 }
 
@@ -92,6 +89,9 @@ LoginUser showSignInWindowAndCollectData(){
 
 int main()
 {
+    LoginUser loginUser ;
+    RegisterUser user;
+    int loggedIn=0;// global for login session
     cout<<"*****************************************************************"<<endl;
     cout<<"*                                                               *"<<endl;
     cout<<"*             ===WELCOME TO OUR CHAT APPLICATION===             *"<<endl;
@@ -99,124 +99,242 @@ int main()
     cout<<"*****************************************************************"<<endl;
     Client *cl =Client::getInstance();  
     int sockStatus; 
-    sockStatus=cl->createConnection();
     availableOptions:
     showOption();//options
     char option;
     cout<<"Enter Your Choice :: ";
     cin>>option;
     int invalidOptionFlag=0;
-        switch(option)
-        {
-            case '1':
-                cout<<"You Selected Option 1"<<endl; 
-                if(sockStatus>0)
-                {
-                    RegisterUser user;
-                    cout<<"connection established"<<endl;
-                    user=showSignUpWindowandCollectData(); // getting user data for registration
-                    string userString =user.toString();
-                    string SignUp="SIGNUP";
-                    string data =SignUp+"|"+userString;
-                    char *dataptr = &data[0];
-                    char recBuf[1000];
-                    cout<<"Sending Data....."<<endl;
-                    if(send(cl->getSock(),dataptr,data.length(),0)>0){
-                        if(recv(cl->getSock(),(char*)&recBuf,sizeof(recBuf),0)>0){
-                            if(strcmp(recBuf,"SUCCESS")==0){
-                            cout<<"Registration Successful"<<endl;
-
-
-
-                        }else{
+    switch(option){
+        case '1':
+            cout<<"You Selected Option 1"<<endl; 
+            sockStatus=cl->createConnection();
+            if(sockStatus>0)
+            {
+                cout<<"connection established"<<endl;
+                user=showSignUpWindowandCollectData(); // getting user data for registration
+                string userString =user.toString();
+                string SignUp="SIGNUP";
+                string data =SignUp+"|"+userString;
+                char *dataptr = &data[0];
+                char recBuf[1000]={0,};
+                cout<<"Sending Data....."<<endl;
+                if(send(cl->getSock(),dataptr,data.length(),0)>0){
+                    if(recv(cl->getSock(),(char*)&recBuf,sizeof(recBuf),0)>0){
+                        if(strcmp(recBuf,"SUCCESS")==0)
+                        {
+                        cout<<"Registration Successful"<<endl;
+                        goto availableOptions;
+                        }
+                        else
+                        {
                             cout<<"Registration Failed"<<endl;
-                            recv(cl->getSock(),(char*)recBuf,sizeof(recBuf),0);
-                            cout<<recBuf<<endl;
+                            int rFail=recv(cl->getSock(),(char*)recBuf,sizeof(recBuf),0);
+                            if(rFail>0){
+                                cout<<recBuf<<endl;
+                            }
+                            else{
+                                cout<<"some unexpected situation occured"<<endl;
+                                goto availableOptions;
+                            }
+                            
                         }
-                        }
-                        
-                    }else{
-                        cout<<"Registration Request could not be sent"<<endl;
                     }
-
                     
+                }else{
+                    cout<<"Registration Request could not be sent"<<endl;
+                }
 
+                
+
+            }
+            else
+            {
+                cout<<"unable to Establish Connection"<<endl;
+            }
+            
+            break;
+        case '2':
+            cout<<"You Selected Option 2"<<endl; 
+            sockStatus=cl->createConnection();
+            if(sockStatus>0)
+            {
+                loginUser = showSignInWindowAndCollectData();
+                string userString=loginUser.toString();
+                string Login="LOGIN";
+                string data=Login+"|"+userString;
+                char *sendBuf = &data[0];
+                char recBuf[1025]={0,};
+                cout<<"sending data to login"<<endl;
+                if(send(cl->getSock(),sendBuf,data.length(),0)>0)
+                {
+                    if(recv(cl->getSock(),(char*)&recBuf,sizeof(recBuf),0)>0)
+                    {
+                        if(strcmp(recBuf,"SUCCESS")==0)
+                        {
+                            cout<<"Login Successful"<<endl;
+                            loggedIn=1;
+                            goto availableOptions;
+                        }
+                        else
+                        {
+                            cout<<"Login Failed"<<endl;
+                            cout<<recBuf<<endl;
+                            int loginfailReceive=recv(cl->getSock(),(char*)recBuf,sizeof(recBuf),0);
+                                if(loginfailReceive>0){
+                                    cout<<recBuf<<endl;
+                                }
+                                else{
+                                    cout<<"something unexpected or something like forceful shutdown at server end occured"<<endl;
+                                    goto availableOptions;
+                                }
+                            
+                        }
+                    }
+                    else
+                    {
+                        cout<<"some unexpected occured not able to receive anything for success of login"<<endl;
+                        goto availableOptions;
+                    }
                 }
                 else
                 {
-                    cout<<"unable to Establish Connection"<<endl;
+                    cout<<"send not successful"<<endl; 
                 }
-                
-                break;
-            case '2':
-                cout<<"You Selected Option 2"<<endl; 
+            }
+            else
+            {
+                cout<<"Not Able to connect to Server"<<endl;
+            }
+            break;
+        case '3':
+            cout<<"You Selected option 3"<<endl; 
+            if(loggedIn)
+            {
+                string chat="CHAT";
+                sockStatus=cl->createConnection();
                 if(sockStatus>0)
                 {
-                    LoginUser loginUser = showSignInWindowAndCollectData();
-                    string userString=loginUser.toString();
-                    string Login="LOGIN";
-                    string data=Login+"|"+userString;
-                    char *sendBuf = &data[0];
-                    char recBuf[1025]={0,};
-                    cout<<"sending data to login"<<endl;
-                    if(send(cl->getSock(),sendBuf,data.length(),0)>0){
-                        if(recv(cl->getSock(),(char*)&recBuf,sizeof(recBuf),0)>0){
-                                if(strcmp(recBuf,"SUCCESS")==0){
-                                cout<<"Login Successful"<<endl;
-
-                            }else{
-                                cout<<"Login Failed"<<endl;
-                                recv(cl->getSock(),(char*)recBuf,sizeof(recBuf),0);
-                                cout<<recBuf<<endl;
+                    char recBuf[1024]={0,};
+                    thread receive([cl,recBuf]()
+                    {
+                        while(1)
+                        {
+                            // cout<<"in receiving message"<<endl;
+                            int r=recv(cl->getSock(),(char*)recBuf,sizeof(recBuf),0);
+                            if(r>0)
+                            {
+                                vector<string> data;
+                                string T;  // declare string variables  
+                                stringstream X(recBuf); // X is an object of stringstream that references the S string  
+                                // use while loop to check the getline() function condition  
+                                while (getline(X, T, '|')) 
+                                {  
+                                    /* X represents to read the string from stringstream, T use for store the token string and, 
+                                    '|' whitespace represents to split the string where whitespace is found. */  
+                                    data.push_back(T);// print split string  
+                                } 
+                                if(data.size()==1){
+                                    cout<<data[0]<<endl;
+                                }
+                                else{
+                                    cout<<"Message From::  "<<data[0]<<endl;
+                                    cout<<"Message     ::  "<<data[1]<<endl;
+                                    cout<<"Time        ::  "<<data[2]<<endl;
+                                
+                                }
+                                cout<<'>';
                             }
-                        }
+                            else if(r==0)
+                            {
+                                break;
+                            }
+                            else
+                            {
+                                cout<<"Not Able to receive anything"<<endl;
+                                break;
+                            }
+                        }                          
                     }
+                    );
+                    if(receive.joinable()){
+                        receive.detach();
+                    }
+                    // this while loop is for sending message;                
+                    while(1)
+                    {
+                        char msg[1025];
+                        cout << " You can enter Exit here if you want to exit chat screen else you can enter your destination\n";
+                        string dest;
+                        cout<<"Enter Your Destination:: ";  
+                        cin>>dest;
+                        if(strcmp(dest.c_str(),"exit")==0)
+                        {
+                            cout<<"you opted to exit"<<endl;
+                            string logout="LOGOUT"; /* here we are logging out just to say user is not available beacuse there is
+                            no feature yet to receive message from another user until we are in chat box*/
+                            string msgString=logout+"|"+user.getEmail();
+                            strcpy(msg,msgString.c_str());
+                            send(cl->getSock(), (char*)&msg, strlen(msg), 0);
+                            break;
+                                                    
+                        }
+                        cout<<"Enter Your Message:: "<<endl;
+                        string messageBody;
+                        // getline(cin,messageBody);
+                        cin.ignore();
+                        cin>> messageBody;
+                        // get current time
+                        time_t rawtime;
+                        struct tm * timeinfo;
+                        char buffer[200];
+                        time (&rawtime);
+                        timeinfo = localtime(&rawtime);
+                        strftime(buffer,sizeof(buffer),"%d-%m-%Y %H:%M:%S",timeinfo);
+                        string timeStamp(buffer);
+                        string from =loginUser.getEmail();
+                        cout<<"From:: "<<from<<endl;
+                        string data="";
+                        data = chat+"|"+from+"|"+dest+"|"+messageBody+"|"+timeStamp;
+                        memset(&msg, 0, sizeof(msg));//clear the buffer
+                        strcpy(msg, data.c_str());
+                        send(cl->getSock(), (char*)&msg, strlen(msg), 0);
+                    }
+                    
                 }
-                else{
-                    cout<<"Not Able to connect to Server"<<endl;
-                }
-                break;
-            case '3':
-                cout<<"You Selected option 3"<<endl; 
-                if(sockStatus>0)
+                else
                 {
-                    LoginUser loginUser = showSignInWindowAndCollectData();
-                    string userString=loginUser.toString();
-                    string Login="LOGIN";
-                    string data=Login+"|"+userString;
-                    char *sendBuf = &data[0];
-                    char recBuf[1025]={0,};
-                    cout<<"sending data to login"<<endl;
-                    if(send(cl->getSock(),sendBuf,data.length(),0)>0){
-                        if(recv(cl->getSock(),(char*)&recBuf,sizeof(recBuf),0)>0){
-                                if(strcmp(recBuf,"SUCCESS")==0){
-                                cout<<"Login Successful"<<endl;
-
-                            }else{
-                                cout<<"Login Failed"<<endl;
-                                recv(cl->getSock(),(char*)recBuf,sizeof(recBuf),0);
-                                cout<<recBuf<<endl;
-                            }
-                        }
-                    }
-                }
-                else{
                     cout<<"Not Able to connect to Server"<<endl;
+                    goto availableOptions;
                 }
-                break;
-            case '4':
-                cout<<"You selected option 4"<<endl;
-                cout<<"You Selected to Exit........."<<endl;
-                return 0;
-                break;
-            default:
-                cout<<"You Selected Invalid Option"<<endl;
-                invalidOptionFlag=1;
-                break;
-        }
-    if(invalidOptionFlag==1){
+            }
+            else
+            {
+                cout<<"Go & Login First"<<endl;
+                goto availableOptions;
+            }
+            break;
+        case '4':
+            cout<<"You selected option 4"<<endl;
+            cout<<"You Selected to Exit........."<<endl;
+            // string logout="LOGOUT"<<endl;
+            // string msgString=logout+"|"+user.getEmail();
+            // msg=msgString.c_str();
+            // send(cl->getSock(), (char*)&msg, strlen(msg), 0);
+
+            break;
+        default:
+            cout<<"You Selected Invalid Option"<<endl;
+            invalidOptionFlag=1;
+            break;
+    }
+
+    if(invalidOptionFlag==1)
+    {
         goto availableOptions;
     }
     
-   return 0; 
+    return 0; 
 }
+
+
