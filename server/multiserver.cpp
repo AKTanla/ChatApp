@@ -8,6 +8,7 @@
 #include <mysql/mysql.h>
 #include <string.h>
 #include <cstring>
+#include <AMQPcpp.h>
 
 using namespace std;
 
@@ -90,30 +91,37 @@ int Server::createServer(){
 
 
 	// creating rabbitmq server
+	try {
 
-	// try {
-	
-	// 	AMQP amqp("AK.Tanla:Welcome#$123@localhost:5672//");		// all connect string
-
-	// 	ex = amqp.createExchange("ChatAppSignUp");
-	// 	ex->Declare("ChatApp", "direct");
-	// 	string queue="SignUpInfo";
-	// 	AMQPQueue * qu2 = amqp.createQueue(queue);
-	// 	qu2->Declare();
-	// 	qu2->Bind( "ChatApp", queue);		
+		string loginString="AK.Tanla:Welcome#$123@localhost:5672//";
+		amqp=new AMQP(loginString);		// all connect string
 
 
-	// 	ex->setHeader("Delivery-mode", 2);
-	// 	ex->setHeader("Content-type", "text/text");
-	// 	ex->setHeader("Content-encoding", "UTF-8"); 
-				
-								
+		ex = amqp->createExchange("ChatApp");
+		ex->Declare("ChatApp", "direct");
+		// AMQPQueue * qu2 = amqp.createQueue(queue);
+		// qu2->Declare();
+		// qu2->Bind( "TestExchange", queue);		
+
+		
+
+		// string ss = "message 1 ";
+		
+		ex->setHeader("Delivery-mode", 2);
+		ex->setHeader("Content-type", "text/text");
+		ex->setHeader("Content-encoding", "UTF-8");
+
+		// ex->Publish(  ss , queue); // publish very long message
+		
+		// ex->Publish(  "message 2 " , queue);
+		// ex->Publish(  "message 3 " , queue);
+
+														
 						
-	// } catch (AMQPException e) {
-	// 	std::cout << e.getMessage() << std::endl;
-	// }
-
-
+	} catch (AMQPException e) {
+		cout<< "exception "<<endl;
+		std::cout << e.getMessage() << std::endl;
+	}
 	return 0;
 }   
 // listen function
@@ -237,19 +245,6 @@ void Server::processNewClient(int nClientSocket)
 	char buff[2024]={0,};
 	while(1){
 		nRet=recv(nClientSocket,(char*)&buff,1024,0);
-		cout<<buff<<endl;
-		vector<string> data;
-		string T;  // declare string variables  
-
-		stringstream X(buff); // X is an object of stringstream that references the S string  
-
-		// use while loop to check the getline() function condition  
-		while (getline(X, T, '|')) {  
-			/* X represents to read the string from stringstream, T use for store the token string and, 
-			' ' whitespace represents to split the string where whitespace is found. */  
-			data.push_back(T);// print split string  
-		}  
-		cout<<data[0]<<endl;
 		if(nRet<0)
 		{
 			cout<<endl<<"Something wrong happened closing the connecction"<<endl;
@@ -280,7 +275,22 @@ void Server::processNewClient(int nClientSocket)
 		}
 		else
 		{
+			cout<<buff<<endl;
+			vector<string> data;
+			string T;  // declare string variables  
 
+			stringstream X(buff); // X is an object of stringstream that references the S string  
+
+			// use while loop to check the getline() function condition  
+			while (getline(X, T, '|')) {  
+				/* X represents to read the string from stringstream, T use for store the token string and, 
+				'|' pipe represents to split the string where pipe is found. */  
+				data.push_back(T);// print split string  
+			}  
+			cout<<data[0]<<endl;
+
+			// logic here 
+            //***************************************************************************************************			
 			if(data[0]=="SIGNUP")
 			{
 				RegisterUser user;
@@ -353,6 +363,7 @@ void Server::processNewClient(int nClientSocket)
 									break;	
 								}
 							}
+							return;
 						}
 						else
 						{
@@ -406,6 +417,7 @@ void Server::processNewClient(int nClientSocket)
 			}
 			else if(data[0]=="CHAT")
 			{
+				cout<<"we are in CHAT section"<<endl;
 				string dest=data[2];
 				int destClientSocket;
 				int onlineUserFlag=0;
@@ -418,30 +430,20 @@ void Server::processNewClient(int nClientSocket)
 					}
 
 				}
-				cout<<"onlineUserFlag"<<onlineUserFlag<<endl;
-				if(onlineUserFlag==0){
-					cout<<"uesr -"<< dest<<" - not online"<<endl;
-					destClientSocket=0;
-					string msg="@"+dest+"--- not online";
-					send(nClientSocket,(char*)&msg[0],sizeof(msg),0);
+				string messageTosend="";
+				messageTosend=data[1]+"|"+data[3]+"|"+data[4];
+				cout<<messageTosend<<endl;
+				try{
+					string queue = dest;
+					AMQPQueue * qu = amqp->createQueue(queue);
+					qu->Declare();
+					qu->Bind( "TestExchange", queue);	
+					ex->Publish(  messageTosend, queue);
 				}
-				else{
-					string messageTosend="";
-					messageTosend=data[1]+"|"+data[3]+"|"+data[4];
-					cout<<messageTosend<<endl;
-					if(destClientSocket!=0){
-						int sendStatus=send(destClientSocket,(char*)&messageTosend[0],sizeof(messageTosend),0);
-						if(sendStatus>0){
-							cout<<"Message to Destination - "<<dest<<" - sent"<<endl;
-
-						}
-						else{
-							cout<<"some error in sending to - "<<dest<<"-"<<endl;
-						}
-					}
-					
+				catch (AMQPException e) {
+					std::cout << e.getMessage() << std::endl;
 				}
-				
+				cout<<"chat section completed"<<endl;
 			}
 			else if(data[0]=="LOGOUT"){
 				for(auto it=onlineUser.begin();it!=onlineUser.end();it++){

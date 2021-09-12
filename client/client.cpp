@@ -1,5 +1,6 @@
 #include "client.h"
 #include <iostream>
+#include <AMQPcpp.h>
 
 
 using namespace std;
@@ -13,6 +14,13 @@ Client::Client(){
     sock=0;
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(port);
+
+    try {
+            amqp=new AMQP("AK.Tanla:Welcome#$123@localhost:5672//");
+        } 
+        catch (AMQPException e) {
+            std::cout << e.getMessage() << std::endl;
+        }
 }
 // getter and setters
 
@@ -44,6 +52,11 @@ int Client::createConnection(){
 
             return sock;
         }
+
+
+        // creating connection with rabbitmq server 
+
+        
 }
 Client* Client::getInstance(){
     if(_inst==NULL){
@@ -51,6 +64,10 @@ Client* Client::getInstance(){
     }
     return _inst;
 
+}
+
+AMQP* Client::getAMQP() const{
+    return amqp;
 }
 
 

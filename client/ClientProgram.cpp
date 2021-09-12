@@ -9,6 +9,7 @@
 #include <boost/regex.hpp>
 #include <thread>
 #include <ctime>
+#include <AMQPcpp.h>
 
 using namespace std;
 using namespace boost;
@@ -86,6 +87,44 @@ LoginUser showSignInWindowAndCollectData(){
     user.setPassword(password);
     return user;
 }
+
+int onCancel(AMQPMessage * message ) {
+	cout << "cancel tag="<< message->getDeliveryTag() << endl;
+	return 0;
+}
+
+int  onMessage( AMQPMessage * message  ) {
+	uint32_t j = 0;
+	char * recBuf = message->getMessage(&j);
+	if (recBuf){
+        cout << recBuf << endl;
+        vector<string> data;
+        string T;  // declare string variables  
+        stringstream X(recBuf); // X is an object of stringstream that references the S string  
+        // use while loop to check the getline() function condition  
+        while (getline(X, T, '|')) 
+        {  
+            /* X represents to read the string from stringstream, T use for store the token string and, 
+            '|' whitespace represents to split the string where whitespace is found. */  
+            data.push_back(T);// print split string  
+        } 
+        if(data.size()==1){
+            cout<<data[0]<<endl;
+        }
+        else{
+            cout<<"Message From::  "<<data[0]<<endl;
+            cout<<"Message     ::  "<<data[1]<<endl;
+            cout<<"Time        ::  "<<data[2]<<endl;
+        
+        }
+        cout<<'>';
+    
+    }
+
+	// cout << "#" << i << " tag="<< message->getDeliveryTag() << " content-type:"<< message->getHeader("Content-type") ;
+	// cout << " encoding:"<< message->getHeader("Content-encoding")<< " mode="<<message->getHeader("Delivery-mode")<<endl;
+	return 0;
+};
 
 int main()
 {
@@ -208,7 +247,7 @@ int main()
             }
             break;
         case '3':
-            cout<<"You Selected option 3"<<endl; 
+            cout<<"in chat section "<<endl;
             if(loggedIn)
             {
                 string chat="CHAT";
@@ -216,44 +255,21 @@ int main()
                 if(sockStatus>0)
                 {
                     char recBuf[1024]={0,};
-                    thread receive([cl,recBuf]()
+                    thread receive([cl,loginUser]()
                     {
-                        while(1)
-                        {
-                            // cout<<"in receiving message"<<endl;
-                            int r=recv(cl->getSock(),(char*)recBuf,sizeof(recBuf),0);
-                            if(r>0)
-                            {
-                                vector<string> data;
-                                string T;  // declare string variables  
-                                stringstream X(recBuf); // X is an object of stringstream that references the S string  
-                                // use while loop to check the getline() function condition  
-                                while (getline(X, T, '|')) 
-                                {  
-                                    /* X represents to read the string from stringstream, T use for store the token string and, 
-                                    '|' whitespace represents to split the string where whitespace is found. */  
-                                    data.push_back(T);// print split string  
-                                } 
-                                if(data.size()==1){
-                                    cout<<data[0]<<endl;
-                                }
-                                else{
-                                    cout<<"Message From::  "<<data[0]<<endl;
-                                    cout<<"Message     ::  "<<data[1]<<endl;
-                                    cout<<"Time        ::  "<<data[2]<<endl;
-                                
-                                }
-                                cout<<'>';
-                            }
-                            else if(r==0)
-                            {
-                                break;
-                            }
-                            else
-                            {
-                                cout<<"Not Able to receive anything"<<endl;
-                                break;
-                            }
+                        try{
+                            AMQPQueue * qu = (cl->getAMQP())->createQueue(loginUser.getEmail());
+                            cout<<"waiting of message"<<endl;
+                            qu->Declare();
+                            qu->Bind( "ChatApp", loginUser.getEmail());
+                            qu->setConsumerTag(loginUser.getEmail());
+                            qu->addEvent(AMQP_MESSAGE, onMessage);
+                            qu->addEvent(AMQP_CANCEL, onCancel );
+
+                            qu->Consume(AMQP_NOACK);//
+                        }
+                        catch (AMQPException e) {
+                            std::cout << e.getMessage() << std::endl;
                         }                          
                     }
                     );
@@ -315,12 +331,15 @@ int main()
             }
             break;
         case '4':
-            cout<<"You selected option 4"<<endl;
-            cout<<"You Selected to Exit........."<<endl;
-            // string logout="LOGOUT"<<endl;
-            // string msgString=logout+"|"+user.getEmail();
-            // msg=msgString.c_str();
-            // send(cl->getSock(), (char*)&msg, strlen(msg), 0);
+            if(1){
+                cout<<"You selected option 4"<<endl;
+                cout<<"You Selected to Exit........."<<endl;
+                string logout="LOGOUT";
+                string msgString=logout+"|"+user.getEmail();
+                const char* msg=msgString.c_str();
+                send(cl->getSock(), (char*)msg, strlen(msg), 0);
+            }
+            
 
             break;
         default:
@@ -338,3 +357,38 @@ int main()
 }
 
 
+
+// cout<<"in receiving message"<<endl;
+                            // int r=recv(cl->getSock(),(char*)recBuf,sizeof(recBuf),0);
+// if(r>0)
+                            // {
+                            //     vector<string> data;
+                            //     string T;  // declare string variables  
+                            //     stringstream X(recBuf); // X is an object of stringstream that references the S string  
+                            //     // use while loop to check the getline() function condition  
+                            //     while (getline(X, T, '|')) 
+                            //     {  
+                            //         /* X represents to read the string from stringstream, T use for store the token string and, 
+                            //         '|' whitespace represents to split the string where whitespace is found. */  
+                            //         data.push_back(T);// print split string  
+                            //     } 
+                            //     if(data.size()==1){
+                            //         cout<<data[0]<<endl;
+                            //     }
+                            //     else{
+                            //         cout<<"Message From::  "<<data[0]<<endl;
+                            //         cout<<"Message     ::  "<<data[1]<<endl;
+                            //         cout<<"Time        ::  "<<data[2]<<endl;
+                                
+                            //     }
+                            //     cout<<'>';
+                            // }
+                            // else if(r==0)
+                            // {
+                            //     break;
+                            // }
+                            // else
+                            // {
+                            //     cout<<"Not Able to receive anything"<<endl;
+                            //     break;
+                            // }     

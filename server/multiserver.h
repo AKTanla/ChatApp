@@ -15,7 +15,6 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <string.h> //strlen
-#include <errno.h>
 #include <unistd.h> //close
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macro
 #include <map>
@@ -49,6 +48,7 @@ class Server{
 
     // for rabbitmq 
     AMQPExchange * ex;
+    AMQP *amqp;
 
     Server();
 

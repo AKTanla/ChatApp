@@ -17,6 +17,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <sstream>
+#include <AMQPcpp.h>
 
 
 using namespace std;
@@ -29,11 +30,15 @@ class Client{
     int port;
     struct sockaddr_in serv_addr;
 
+    // for rabbitmq
+    AMQP *amqp;
+
     Client(); //private constructor
 
     static Client* _inst;
     public:
         int getSock() const;
+        AMQP* getAMQP() const;
         static Client* getInstance();
         int createConnection();
 
