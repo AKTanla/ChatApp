@@ -14,6 +14,10 @@
 using namespace std;
 using namespace boost;
 
+// global for all function can use that
+LoginUser loginUser ;
+RegisterUser user;
+
 void saveToLocalStorage(){
     
 }
@@ -95,9 +99,8 @@ int onCancel(AMQPMessage * message ) {
 
 int  onMessage( AMQPMessage * message  ) {
 	uint32_t j = 0;
-	char * recBuf = message->getMessage(&j);
-	if (recBuf){
-        cout << recBuf << endl;
+    char * recBuf = message->getMessage(&j);
+    if (recBuf){
         vector<string> data;
         string T;  // declare string variables  
         stringstream X(recBuf); // X is an object of stringstream that references the S string  
@@ -118,18 +121,15 @@ int  onMessage( AMQPMessage * message  ) {
         
         }
         cout<<'>';
-    
     }
-
-	// cout << "#" << i << " tag="<< message->getDeliveryTag() << " content-type:"<< message->getHeader("Content-type") ;
+    // cout << "#" << i << " tag="<< message->getDeliveryTag() << " content-type:"<< message->getHeader("Content-type") ;
 	// cout << " encoding:"<< message->getHeader("Content-encoding")<< " mode="<<message->getHeader("Delivery-mode")<<endl;
 	return 0;
 };
 
 int main()
 {
-    LoginUser loginUser ;
-    RegisterUser user;
+   
     int loggedIn=0;// global for login session
     cout<<"*****************************************************************"<<endl;
     cout<<"*                                                               *"<<endl;
@@ -215,6 +215,11 @@ int main()
                             loggedIn=1;
                             goto availableOptions;
                         }
+                        else if (strcmp(recBuf,"NOT_REGISTERED")==0){
+                            cout<<"User Not Registered"<<endl;
+                            cout<<"Register first"<<endl;
+                            goto availableOptions;
+                        }       
                         else
                         {
                             cout<<"Login Failed"<<endl;
@@ -247,7 +252,6 @@ int main()
             }
             break;
         case '3':
-            cout<<"in chat section "<<endl;
             if(loggedIn)
             {
                 string chat="CHAT";
@@ -255,14 +259,15 @@ int main()
                 if(sockStatus>0)
                 {
                     char recBuf[1024]={0,};
-                    thread receive([cl,loginUser]()
+                    thread receive([cl]()
                     {
                         try{
-                            AMQPQueue * qu = (cl->getAMQP())->createQueue(loginUser.getEmail());
+                            string queue=loginUser.getEmail();
+                            AMQPQueue * qu = (cl->getAMQP())->createQueue(queue);
                             cout<<"waiting of message"<<endl;
-                            qu->Declare();
-                            qu->Bind( "ChatApp", loginUser.getEmail());
-                            qu->setConsumerTag(loginUser.getEmail());
+                            qu->Declare(queue,AMQP_DURABLE);
+                            qu->Bind( "ChatApp", queue);
+                            qu->setConsumerTag(queue);
                             qu->addEvent(AMQP_MESSAGE, onMessage);
                             qu->addEvent(AMQP_CANCEL, onCancel );
 
@@ -279,6 +284,7 @@ int main()
                     // this while loop is for sending message;                
                     while(1)
                     {
+                        startChat:
                         char msg[1025];
                         cout << " You can enter Exit here if you want to exit chat screen else you can enter your destination\n";
                         string dest;
@@ -286,20 +292,24 @@ int main()
                         cin>>dest;
                         if(strcmp(dest.c_str(),"exit")==0)
                         {
-                            cout<<"you opted to exit"<<endl;
-                            string logout="LOGOUT"; /* here we are logging out just to say user is not available beacuse there is
-                            no feature yet to receive message from another user until we are in chat box*/
-                            string msgString=logout+"|"+user.getEmail();
-                            strcpy(msg,msgString.c_str());
-                            send(cl->getSock(), (char*)&msg, strlen(msg), 0);
-                            break;
+                            cout<<"you opted to exit chat"<<endl;
+                            // string logout="LOGOUT"; /* here we are logging out just to say user is not available beacuse there is
+                            // no feature yet to receive message from another user until we are in chat box*/
+                            // string msgString=logout+"|"+user.getEmail();
+                            // strcpy(msg,msgString.c_str());
+                            // send(cl->getSock(), (char*)&msg, strlen(msg), 0);
+                            goto availableOptions;
                                                     
+                        }
+                        else if(dest==loginUser.getEmail()){
+                            cout<<"DESTINATION AND SOURCE CAN NOT BE SAME"<<endl;
+                            goto startChat;
                         }
                         cout<<"Enter Your Message:: "<<endl;
                         string messageBody;
                         // getline(cin,messageBody);
                         cin.ignore();
-                        cin>> messageBody;
+                        getline(cin,messageBody);
                         // get current time
                         time_t rawtime;
                         struct tm * timeinfo;
@@ -358,37 +368,3 @@ int main()
 
 
 
-// cout<<"in receiving message"<<endl;
-                            // int r=recv(cl->getSock(),(char*)recBuf,sizeof(recBuf),0);
-// if(r>0)
-                            // {
-                            //     vector<string> data;
-                            //     string T;  // declare string variables  
-                            //     stringstream X(recBuf); // X is an object of stringstream that references the S string  
-                            //     // use while loop to check the getline() function condition  
-                            //     while (getline(X, T, '|')) 
-                            //     {  
-                            //         /* X represents to read the string from stringstream, T use for store the token string and, 
-                            //         '|' whitespace represents to split the string where whitespace is found. */  
-                            //         data.push_back(T);// print split string  
-                            //     } 
-                            //     if(data.size()==1){
-                            //         cout<<data[0]<<endl;
-                            //     }
-                            //     else{
-                            //         cout<<"Message From::  "<<data[0]<<endl;
-                            //         cout<<"Message     ::  "<<data[1]<<endl;
-                            //         cout<<"Time        ::  "<<data[2]<<endl;
-                                
-                            //     }
-                            //     cout<<'>';
-                            // }
-                            // else if(r==0)
-                            // {
-                            //     break;
-                            // }
-                            // else
-                            // {
-                            //     cout<<"Not Able to receive anything"<<endl;
-                            //     break;
-                            // }     

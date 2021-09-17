@@ -12,7 +12,6 @@
 #include <netdb.h>
 #include <sys/uio.h>
 #include <sys/time.h>
-#include <sys/wait.h>
 #include <fcntl.h>
 #include <string.h> //strlen
 #include <unistd.h> //close
@@ -49,6 +48,7 @@ class Server{
     // for rabbitmq 
     AMQPExchange * ex;
     AMQP *amqp;
+    
 
     Server();
 

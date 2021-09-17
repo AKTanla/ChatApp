@@ -98,28 +98,16 @@ int Server::createServer(){
 
 
 		ex = amqp->createExchange("ChatApp");
-		ex->Declare("ChatApp", "direct");
-		// AMQPQueue * qu2 = amqp.createQueue(queue);
-		// qu2->Declare();
-		// qu2->Bind( "TestExchange", queue);		
+		ex->Declare("ChatApp", "direct",AMQP_DURABLE);
 
-		
+			
 
-		// string ss = "message 1 ";
-		
 		ex->setHeader("Delivery-mode", 2);
 		ex->setHeader("Content-type", "text/text");
 		ex->setHeader("Content-encoding", "UTF-8");
-
-		// ex->Publish(  ss , queue); // publish very long message
-		
-		// ex->Publish(  "message 2 " , queue);
-		// ex->Publish(  "message 3 " , queue);
-
 														
 						
 	} catch (AMQPException e) {
-		cout<< "exception "<<endl;
 		std::cout << e.getMessage() << std::endl;
 	}
 	return 0;
@@ -275,7 +263,6 @@ void Server::processNewClient(int nClientSocket)
 		}
 		else
 		{
-			cout<<buff<<endl;
 			vector<string> data;
 			string T;  // declare string variables  
 
@@ -285,7 +272,7 @@ void Server::processNewClient(int nClientSocket)
 			while (getline(X, T, '|')) {  
 				/* X represents to read the string from stringstream, T use for store the token string and, 
 				'|' pipe represents to split the string where pipe is found. */  
-				data.push_back(T);// print split string  
+				data.push_back(T);// store split string  
 			}  
 			cout<<data[0]<<endl;
 
@@ -342,22 +329,55 @@ void Server::processNewClient(int nClientSocket)
 				if(!queryStatus)
 				{
 					MYSQL_RES *res;
-					res =mysql_use_result(conn);
+					res =mysql_store_result(conn);
 					MYSQL_ROW row;
+					int numRow =mysql_num_rows(res);
 					row = mysql_fetch_row(res); 
-					if(row[0]==data[2])
-					{
-						mysql_free_result(res);
-						cout<<"You are Valid user"<<endl;
-						sendRes=send(nClientSocket,"SUCCESS",7,0);
-						if(sendRes>0)
+					if(numRow>0){
+						if(row[0]==data[2])
 						{
-							onlineUser[nClientSocket]=data[1];
-							close(nClientSocket);
-							for(int i=0;i<max_clients;i++)
+							mysql_free_result(res);
+							cout<<"You are Valid user"<<endl;
+							sendRes=send(nClientSocket,"SUCCESS",7,0);
+							if(sendRes>0)
 							{
-								if(client_socket[i]==nClientSocket)
+								onlineUser[nClientSocket]=data[1];
+								close(nClientSocket);
+								for(int i=0;i<max_clients;i++)
 								{
+									if(client_socket[i]==nClientSocket)
+									{
+										
+										client_socket[i]=0;
+										break;	
+									}
+								}
+								return;
+							}
+							else
+							{
+								cout<<"not able to send success message"<<endl;
+								close(nClientSocket);
+								for(int i=0;i<max_clients;i++)
+								{
+									if(client_socket[i]==nClientSocket)
+									{
+										
+										client_socket[i]=0;
+										break;	
+									}
+								}
+							}
+						}
+						else
+						{
+				//*************** user not authorised *********************
+							mysql_free_result(res);
+							send(nClientSocket,mysql_error(conn),strlen(mysql_error(conn)),0);
+							cout<<endl<<"Something wrong happened closing the connecction"<<endl;
+							close(nClientSocket);
+							for(int i=0;i<max_clients;i++){
+								if(client_socket[i]==nClientSocket){
 									
 									client_socket[i]=0;
 									break;	
@@ -365,29 +385,12 @@ void Server::processNewClient(int nClientSocket)
 							}
 							return;
 						}
-						else
-						{
-							cout<<"not able to send success message"<<endl;
-							close(nClientSocket);
-							for(int i=0;i<max_clients;i++)
-							{
-								if(client_socket[i]==nClientSocket)
-								{
-									
-									client_socket[i]=0;
-									break;	
-								}
-							}
-						}
 					}
-
-					else
-					{
-						cout<<"You are Invalid User"<<endl;
-						mysql_free_result(res);
-						cout<<mysql_error(conn)<<endl;
-						send(nClientSocket,mysql_error(conn),strlen(mysql_error(conn)),0);
-						cout<<endl<<"Something wrong happened closing the connecction"<<endl;
+					else{
+			// here send to client that user is not avilable in databsae so register first*************
+						char m[100]="NOT_REGISTERED";
+						send(nClientSocket,&m,strlen(m),0);
+						cout<<endl<<"USER NOT REGISTERED "<<endl;
 						close(nClientSocket);
 						for(int i=0;i<max_clients;i++){
 							if(client_socket[i]==nClientSocket){
@@ -398,9 +401,70 @@ void Server::processNewClient(int nClientSocket)
 						}
 						return;
 					}
+					
+					
 				}
 				else
 				{
+					cout<<"Query not Succesful some error occured "<<endl;
+					cout<<mysql_error(conn)<<endl;
+					close(nClientSocket);
+						for(int i=0;i<max_clients;i++){
+							if(client_socket[i]==nClientSocket){
+								
+								client_socket[i]=0;
+								break;	
+							}
+						}
+					return;					
+				}
+			}// End of LOGIN SECTION ***********************************************************************
+			else if(data[0]=="CHAT")
+			{
+				// This is the chat handling section of  server ********************************************
+				cout<<buff<<endl;
+				string checkForUserRegistration="SELECT * FROM user WHERE user_email='"+data[2]+"'";
+				int queryStatus=mysql_query(conn, checkForUserRegistration.c_str());
+				cout<<"chat query status"<<queryStatus<<endl;
+				if(!queryStatus){
+					MYSQL_RES *res;
+					res =mysql_store_result(conn);
+					MYSQL_ROW row;
+					int numRow = mysql_num_rows(res);
+					row = mysql_fetch_row(res); 
+					if(numRow>0){
+						mysql_free_result(res);
+						try{
+							cout<<"user is registered"<<endl;
+							string dest=data[2];
+							string messageTosend="";
+							messageTosend=data[1]+"|"+data[3]+"|"+data[4];
+							string queue = dest;
+							AMQPQueue *qu = amqp->createQueue(queue);
+							qu->Declare(queue,AMQP_DURABLE);
+							qu->Bind( "ChatApp", queue);
+							ex->Publish(  messageTosend, queue);
+						}
+						catch (AMQPException e) {
+							std::cout << e.getMessage() << std::endl;
+							
+						}
+					}else{
+						try{
+							cout<<"user is not registered "<<endl;
+							string queue = data[1];
+							AMQPQueue *qu = amqp->createQueue(queue);
+							qu->Declare(queue,AMQP_DURABLE);
+							qu->Bind( "ChatApp", queue);
+							ex->Publish( "user not registered or not available on this chat app", queue);
+						}catch (AMQPException e) {
+							std::cout << e.getMessage() << std::endl;
+							
+						}
+						
+					}
+				}
+				else{
 					cout<<"Query not Succesful Email not found or something else happened"<<endl;
 					cout<<mysql_error(conn)<<endl;
 					close(nClientSocket);
@@ -411,40 +475,12 @@ void Server::processNewClient(int nClientSocket)
 								break;	
 							}
 						}
-						return;
-					
+					return;	
 				}
-			}
-			else if(data[0]=="CHAT")
-			{
-				cout<<"we are in CHAT section"<<endl;
-				string dest=data[2];
-				int destClientSocket;
-				int onlineUserFlag=0;
-				for(auto it=onlineUser.begin();it!=onlineUser.end();it++){
-					if((it->second)==dest){
-						onlineUserFlag=1;
-						cout<<"user -"<< dest <<"-is online"<<endl;
-						destClientSocket = it->first;
-						break;	
-					}
-
-				}
-				string messageTosend="";
-				messageTosend=data[1]+"|"+data[3]+"|"+data[4];
-				cout<<messageTosend<<endl;
-				try{
-					string queue = dest;
-					AMQPQueue * qu = amqp->createQueue(queue);
-					qu->Declare();
-					qu->Bind( "TestExchange", queue);	
-					ex->Publish(  messageTosend, queue);
-				}
-				catch (AMQPException e) {
-					std::cout << e.getMessage() << std::endl;
-				}
-				cout<<"chat section completed"<<endl;
-			}
+				
+				
+               // chat section completed
+			}//END OF CHAT SECTION ********************************************************************
 			else if(data[0]=="LOGOUT"){
 				for(auto it=onlineUser.begin();it!=onlineUser.end();it++){
 					if((it->second)==data[1]){
@@ -485,37 +521,5 @@ void Server::processNewClient(int nClientSocket)
 	
 	return;
 }
-
-// int Server::publishMessage(string message )  
-// {
-// 	try {
-// //		AMQP amqp;
-// //		AMQP amqp(AMQPDEBUG);
-	
-// 		AMQP amqp("AK.Tanla:Welcome#$123@localhost:5672//");		// all connect string
-
-// 		AMQPExchange * ex = amqp.createExchange("ChatAppSignUp");
-// 		ex->Declare("ChatAppSignUp", "direct");
-// 		string queue="UserSignUp";
-// 		AMQPQueue * qu2 = amqp.createQueue(queue);
-// 		qu2->Declare();
-// 		qu2->Bind( "ChatAppSignUp", queue);		
-
-
-// 		ex->setHeader("Delivery-mode", 2);
-// 		ex->setHeader("Content-type", "text/text");
-// 		ex->setHeader("Content-encoding", "UTF-8");
-
-// 		ex->Publish(  message, queue); // publish very long message 
-				
-								
-						
-// 	} catch (AMQPException e) {
-// 		std::cout << e.getMessage() << std::endl;
-// 	}
-
-// 	return 0;
-
-// }
 
 

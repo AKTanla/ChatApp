@@ -32,6 +32,7 @@ class Client{
 
     // for rabbitmq
     AMQP *amqp;
+    AMQPQueue *messageQueue;
 
     Client(); //private constructor
 

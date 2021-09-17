@@ -17,6 +17,7 @@ Client::Client(){
 
     try {
             amqp=new AMQP("AK.Tanla:Welcome#$123@localhost:5672//");
+
         } 
         catch (AMQPException e) {
             std::cout << e.getMessage() << std::endl;
@@ -70,66 +71,4 @@ AMQP* Client::getAMQP() const{
     return amqp;
 }
 
-
-// 	// cout<<"Connection established \n";
-// 	recv(sock, (char*)&msg, sizeof(msg), 0);
-// 	cout<<msg<<endl;
-// 	cout<<"Ready for sending new message "<<endl;
-//     cout<<"Enter 1 to Login \n Enter 2 to SignUp if you are new User \n ";
-//     int option;
-//     while(1){
-//         cout<<"Enter your Choice :: ";
-//         cin>>option;
-//         if(option==1 || option==2)
-//             break;
-//         else {
-//             cout<<"invalid option Enter ur choice again \n";
-//         }
-//     }
-//     switch(option){
-//         case 1:
-//     }
-//     while(1)
-//     {
-//         cout << ">";
-//         string data;
-//         getline(cin, data);
-//         memset(&msg, 0, sizeof(msg));//clear the buffer
-//         strcpy(msg, data.c_str());
-//         if(data == "exit")
-//         {
-//             send(sock, (char*)&msg, strlen(msg), 0);
-//             break;
-//         }
-//         send(sock, (char*)&msg, strlen(msg), 0);
-//         cout << "Awaiting server response..." << endl;
-        
-//         memset(&msg, 0, sizeof(msg));//clear the buffer
-//         recv(sock, (char*)&msg, sizeof(msg), 0);
-
-//         // showing message returned from server
-//         cout << "Server: " << msg << endl;
-//     }
-//     cout << "********Session********" << endl;
-//     cout << "Connection closed" << endl;
-// 	return 0;
-// }
-
-// void  INThandler(int sig)
-// {
-//      char  c;
-
-//      signal(sig, SIG_IGN);
-//      printf("OUCH, did you hit Ctrl-C?\n"
-//             "Do you really want to quit? [y/n] ");
-//      c = getchar();
-//      if (c == 'y' || c == 'Y'){
-// 		 send(sock, (char*)"exit", strlen("exit"), 0);
-// 		 exit(0);
-// 	 }
-          
-//      else
-//         signal(SIGINT, INThandler);
-//         getchar(); // Get new line character
-// }
 
