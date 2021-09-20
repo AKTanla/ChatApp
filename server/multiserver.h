@@ -20,8 +20,13 @@
 #include <sys/ioctl.h>
 #include <mysql/mysql.h>
 #include <AMQPcpp.h>
+#include "Poco/Logger.h"
+#include "Poco/SimpleFileChannel.h"
 
 using namespace std;
+using Poco::Logger;
+using Poco::SimpleFileChannel;
+using Poco::AutoPtr;
 
  const int max_clients=64;
 
@@ -48,6 +53,15 @@ class Server{
     // for rabbitmq 
     AMQPExchange * ex;
     AMQP *amqp;
+    AMQPQueue *loginReport;
+    AMQPQueue *signUpReport;
+    AMQPQueue *messageToDatabase;
+
+
+    // logger and channel
+
+    AutoPtr<SimpleFileChannel> pChannel;
+    // Logger& logger;
     
 
     Server();
@@ -59,7 +73,13 @@ class Server{
         void processTheNewRequest();
         void processNewClient(int nClientSocket);
         int publishMessage(string message ); 
+        void logInfo(string message);
+        void logErr(string message);
+
 
 };
+
+string getCurrentTime();
+string getMessage(string message);
 
 
