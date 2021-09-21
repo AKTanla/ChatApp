@@ -344,13 +344,7 @@ void Server::processNewClient(int nClientSocket)
 				string InsertUser="INSERT INTO user (user_firstName, user_lastName, user_name, user_email, user_password) VALUES('"+user.getFirstName()+"','"+user.getLastName()+"','"+user.getUserName()+"','"+user.getEmail()+"','"+user.getPassword()+"')";
 				int queryStatus=mysql_query(conn,InsertUser.c_str());
 				if(!queryStatus){
-					time_t rawtime;
-					struct tm * timeinfo;
-					char buffer[200];
-					time (&rawtime);
-					timeinfo = localtime(&rawtime);
-					strftime(buffer,sizeof(buffer),"%Y-%m-%d %H:%M:%S",timeinfo);
-					string timeStamp(buffer);
+					string timeStamp=getCurrentTime();
 					string signUpReport=user.getEmail()+"|"+timeStamp;
 					try{
 						ex->Publish(signUpReport, "signUpReport");
@@ -361,11 +355,11 @@ void Server::processNewClient(int nClientSocket)
 					}
 					cout<<"data inserted successfully"<<endl;
 					send(nClientSocket,"SUCCESS",7,0);
+					logInfo(user.getEmail()+"  Signed Up succesfully");
 					cout<<"************************************************************"<<endl;
 					close(nClientSocket);
 					for(int i=0;i<max_clients;i++){
 						if(client_socket[i]==nClientSocket){
-							
 							client_socket[i]=0;
 							break;	
 						}
@@ -375,6 +369,7 @@ void Server::processNewClient(int nClientSocket)
 				else{
 					cout<<"unable to insert"<<endl;
 					cout<<mysql_error(conn)<<endl;
+					logErr(user.getEmail()+"  Could not SignUp succesfully");
 					send(nClientSocket,mysql_error(conn),strlen(mysql_error(conn)),0);
 					close(nClientSocket);
 					for(int i=0;i<max_clients;i++){
@@ -423,6 +418,7 @@ void Server::processNewClient(int nClientSocket)
 								std::cout << e.getMessage() << std::endl;
 								
 							}
+							logInfo(data[1]+"  Signed In succesfully");
 							sendRes=send(nClientSocket,"SUCCESS",7,0);
 							if(sendRes>0)
 							{
@@ -459,6 +455,7 @@ void Server::processNewClient(int nClientSocket)
 				 //*************** user not authorised *********************
 							mysql_free_result(res);
 							string notAuthorised="Incorret User Name Or Password";
+							logInfo(data[1]+"Incorrect User Name or Password");
 							send(nClientSocket,(char*)&notAuthorised[0] ,sizeof(notAuthorised),0);
 							cout<<endl<<"Something wrong happened closing the connecction"<<endl;
 							close(nClientSocket);
@@ -475,6 +472,7 @@ void Server::processNewClient(int nClientSocket)
 			      // here send to client that user is not avilable in databsae so register first*************
 						char m[100]="NOT_REGISTERED";
 						send(nClientSocket,&m,strlen(m),0);
+						logInfo(data[1]+" Is not Registered");
 						cout<<endl<<"USER NOT REGISTERED "<<endl;
 						close(nClientSocket);
 						for(int i=0;i<max_clients;i++){
@@ -493,6 +491,7 @@ void Server::processNewClient(int nClientSocket)
 				{
 					cout<<"Query not Succesful some error occured "<<endl;
 					cout<<mysql_error(conn)<<endl;
+					logErr(mysql_error(conn));
 					send(nClientSocket,mysql_error(conn),strlen(mysql_error(conn)),0);
 					close(nClientSocket);
 						for(int i=0;i<max_clients;i++){
@@ -552,6 +551,7 @@ void Server::processNewClient(int nClientSocket)
 							qu->Declare(queue,AMQP_DURABLE);
 							qu->Bind( "ChatApp", queue);
 							ex->Publish( "user not registered or not available on this chat app", queue);
+							logInfo(data[2]+" user not available ");
 						}catch (AMQPException e) {
 							std::cout << e.getMessage() << std::endl;
 							
@@ -569,8 +569,9 @@ void Server::processNewClient(int nClientSocket)
 					}
 				}
 				else{
-					cout<<"Query not Succesful Email not found or something else happened"<<endl;
+					cout<<"Query not Succesful"<<endl;
 					cout<<mysql_error(conn)<<endl;
+					logErr("Query not Succesful"+string(mysql_error(conn)));
 					close(nClientSocket);
 						for(int i=0;i<max_clients;i++){
 							if(client_socket[i]==nClientSocket){
@@ -594,6 +595,7 @@ void Server::processNewClient(int nClientSocket)
 					}
 
 				}
+				logInfo(data[1]+"  Signed Out succesfully");
 				close(nClientSocket);
 				for(int i=0;i<max_clients;i++){
 					if(client_socket[i]==nClientSocket){
@@ -644,11 +646,11 @@ string getMessage(string message){
 void Server::logInfo(string message){
 	
 	Logger& logObject = Logger::get("ServerLogger"); // inherits root channel
-	logObject.information(getMessage(message));
+	logObject.information("info -> "+getMessage(message));
 }
 
 void Server::logErr(string message){
 	Logger& logObject = Logger::get("ServerLogger"); // inherits root channel
-	logObject.error(getMessage(message));
+	logObject.error("error -> "+getMessage(message));
 }
 
